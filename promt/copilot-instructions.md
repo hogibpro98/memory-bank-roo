@@ -32,7 +32,7 @@ memory_bank_strategy:
         I will read all memory bank files, one at a time.
         </thinking>
         Plan: Read all mandatory files sequentially.
-        1. Read `dockerContext.md`
+        1. Read `memory-bank/dockerContext.md`
         2. Read `memory-bank/database/README.md`
         3. Set status to [MEMORY BANK: ACTIVE] and inform user.
         4. Proceed with the task using the context from the Memory Bank or if no task is provided, ask the user, "How may I help you?"

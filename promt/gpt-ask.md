@@ -24,19 +24,13 @@
 
 ## Nguyên Tắc Vàng (Golden Rules - Luôn Tuân Thủ)
 
-1.  **TOÀN VẸN TIẾNG NHẬT LÀ TUYỆT ĐỐI:**
-    * Mọi tương tác với MySQL **BẮT BUỘC** phải được mã hóa `utf8mb4`. Đây là nguyên tắc không được phép vi phạm.
-    * Luôn tự động thêm `SET NAMES utf8mb4;` và cờ `--default-character-set=utf8mb4` vào các lệnh bạn đề xuất, ngay cả khi tôi quên.
-
-2.  **DOCKER COMPOSE LÀ CHÂN LÝ:**
+1.  **DOCKER COMPOSE LÀ CHÂN LÝ:**
     * Mọi hoạt động quản lý container phải thông qua `docker compose`.
     * Luôn sử dụng đúng tên service: `web`, `db`, `web_esbuild`.
 
 ## Hộp Dụng Cụ & Quy Trình (Toolbox & Protocols)
 
 **Lưu trữ thông tin tìm kiếm:** Trong quá trình làm việc, luôn tạo và cập nhật một file `.md` riêng để ghi lại tất cả các thông tin đã tìm kiếm, phát hiện hoặc tham khảo. File này cần được cập nhật liên tục trong suốt quá trình phát triển để đảm bảo mọi tri thức đều được lưu vết và dễ dàng tra cứu lại khi cần thiết.
-
-Đây là các công cụ và quy trình chuẩn của dự án.
 
 ### Bối Cảnh Kỹ Thuật
 * **Services:** `web` (Apache/PHP), `db` (MySQL), `web_esbuild` (npm/assets)
@@ -46,28 +40,295 @@
     * Super User: `root` / `prootpassword` (dùng cho quản trị & gỡ lỗi)
     * Legacy User: `kantaki` / `pkantaki`
 
-### Lệnh Tham Khảo Nhanh
+### Lệnh Base (Sử dụng làm prefix cho tất cả lệnh)
+```bash
+# Lệnh cơ bản với UTF-8 encoding
+docker exec db mysql -u root -prootpassword kantaki_dev --default-character-set=utf8mb4
 
-* **Truy vấn & Kiểm tra dữ liệu (Mẫu chuẩn):**
-    ```bash
-    # Truy vấn nhanh, hiển thị dạng bảng, đảm bảo UTF-8.
-    docker exec db mysql -u root -prootpassword kantaki_dev -e "SET NAMES utf8mb4; SELECT unique_id, last_name, first_name FROM mst_user LIMIT 10;" --default-character-set=utf8mb4 -t
-    ```
-* **Backup & Restore:**
-    ```bash
-    # Backup với tên file chứa ngày tháng, đảm bảo UTF-8.
-    docker exec db mysqldump -u root -prootpassword --default-character-set=utf8mb4 kantaki_dev > backup_$(date +%Y-%m-%d).sql
+# Với SET NAMES để đảm bảo tiếng Nhật hiển thị đúng
+docker exec db mysql -u root -prootpassword kantaki_dev -e "SET NAMES utf8mb4; [YOUR_QUERY]" --default-character-set=utf8mb4
+```
 
-    # Restore từ file backup, đảm bảo UTF-8.
-    docker exec -i db mysql -u root -prootpassword --default-character-set=utf8mb4 kantaki_dev < backup.sql
-    ```
-* **Quản lý Services & Logs:**
-    ```bash
-    docker compose up -d       # Bật hệ thống
-    docker compose down        # Tắt hệ thống
-    docker compose restart web # Khởi động lại web server
-    docker logs -f web         # Xem log web thời gian thực
-    ```
+## 1. Liệt kê và Tìm kiếm Bảng
+
+### Hiển thị tất cả tên bảng
+```bash
+docker exec db mysql -u root -prootpassword kantaki_dev -e "SET NAMES utf8mb4; SHOW TABLES;" --default-character-set=utf8mb4
+```
+
+### Hiển thị tất cả bảng với comment (tiếng Nhật)
+```bash
+docker exec db mysql -u root -prootpassword kantaki_dev -e "SET NAMES utf8mb4; 
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    TABLE_COMMENT as 'Comment'
+FROM 
+    INFORMATION_SCHEMA.TABLES 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+ORDER BY 
+    TABLE_NAME;" --default-character-set=utf8mb4
+```
+
+### Tìm kiếm bảng theo comment (thay 'keyword' bằng từ khóa cần tìm)
+```bash
+docker exec db mysql -u root -prootpassword kantaki_dev -e "SET NAMES utf8mb4;
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    TABLE_COMMENT as 'Comment'
+FROM 
+    INFORMATION_SCHEMA.TABLES 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND TABLE_COMMENT LIKE '%keyword%'
+ORDER BY 
+    TABLE_NAME;" --default-character-set=utf8mb4
+```
+
+### Tìm kiếm bảng theo tên (thay 'pattern' bằng pattern cần tìm)
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    TABLE_COMMENT as 'Comment'
+FROM 
+    INFORMATION_SCHEMA.TABLES 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND TABLE_NAME LIKE '%pattern%'
+ORDER BY 
+    TABLE_NAME"
+```
+
+## 2. Phân tích Cấu trúc Bảng
+
+### Hiển thị cấu trúc đầy đủ của bảng (thay 'table_name')
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "SHOW FULL COLUMNS FROM table_name"
+```
+
+### Hiển thị CREATE TABLE statement
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "SHOW CREATE TABLE table_name"
+```
+
+### Hiển thị tất cả indexes của bảng
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "SHOW INDEX FROM table_name"
+```
+
+### Hiển thị thông tin chi tiết về indexes
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    INDEX_NAME as 'Tên Index',
+    COLUMN_NAME as 'Cột',
+    SEQ_IN_INDEX as 'Vị trí',
+    NON_UNIQUE as 'Non Unique',
+    INDEX_TYPE as 'Loại Index'
+FROM 
+    INFORMATION_SCHEMA.STATISTICS 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev' 
+    AND TABLE_NAME = 'table_name'
+ORDER BY 
+    INDEX_NAME, SEQ_IN_INDEX"
+```
+
+## 3. Tìm kiếm theo Column
+
+### Tìm kiếm column theo tên trong tất cả bảng
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    COLUMN_NAME as 'Tên Cột',
+    DATA_TYPE as 'Kiểu Dữ liệu',
+    COLUMN_COMMENT as 'Comment'
+FROM 
+    INFORMATION_SCHEMA.COLUMNS 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND COLUMN_NAME LIKE '%column_keyword%'
+ORDER BY 
+    TABLE_NAME, ORDINAL_POSITION"
+```
+
+### Tìm kiếm column theo comment
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    COLUMN_NAME as 'Tên Cột',
+    DATA_TYPE as 'Kiểu Dữ liệu',
+    COLUMN_COMMENT as 'Comment'
+FROM 
+    INFORMATION_SCHEMA.COLUMNS 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND COLUMN_COMMENT LIKE '%comment_keyword%'
+ORDER BY 
+    TABLE_NAME, ORDINAL_POSITION"
+```
+
+### Hiển thị tất cả column của một bảng với thông tin chi tiết
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    COLUMN_NAME as 'Tên Cột',
+    DATA_TYPE as 'Kiểu',
+    IS_NULLABLE as 'Null',
+    COLUMN_DEFAULT as 'Mặc định',
+    EXTRA as 'Extra',
+    COLUMN_COMMENT as 'Comment'
+FROM 
+    INFORMATION_SCHEMA.COLUMNS 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev' 
+    AND TABLE_NAME = 'table_name'
+ORDER BY 
+    ORDINAL_POSITION"
+```
+
+## 4. Thống kê Database
+
+### Thống kê số lượng bảng theo prefix
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    SUBSTRING_INDEX(TABLE_NAME, '_', 1) as 'Prefix',
+    COUNT(*) as 'Số Bảng'
+FROM 
+    INFORMATION_SCHEMA.TABLES 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+GROUP BY 
+    SUBSTRING_INDEX(TABLE_NAME, '_', 1)
+ORDER BY 
+    COUNT(*) DESC"
+```
+
+### Thống kê dung lượng bảng
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    ROUND(((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024), 2) as 'Dung lượng (MB)',
+    TABLE_ROWS as 'Số dòng',
+    TABLE_COMMENT as 'Comment'
+FROM 
+    INFORMATION_SCHEMA.TABLES 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+ORDER BY 
+    (DATA_LENGTH + INDEX_LENGTH) DESC"
+```
+
+### Kiểm tra character set và collation
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    TABLE_COLLATION as 'Collation'
+FROM 
+    INFORMATION_SCHEMA.TABLES 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+ORDER BY 
+    TABLE_NAME"
+```
+
+## 5. Kiểm tra Khóa ngoại (Foreign Keys)
+
+### Hiển thị tất cả foreign keys
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    CONSTRAINT_NAME as 'Tên FK',
+    TABLE_NAME as 'Bảng',
+    COLUMN_NAME as 'Cột',
+    REFERENCED_TABLE_NAME as 'Bảng tham chiếu',
+    REFERENCED_COLUMN_NAME as 'Cột tham chiếu'
+FROM 
+    INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND REFERENCED_TABLE_NAME IS NOT NULL
+ORDER BY 
+    TABLE_NAME, CONSTRAINT_NAME"
+```
+
+### Kiểm tra foreign keys của một bảng cụ thể
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    CONSTRAINT_NAME as 'Tên FK',
+    COLUMN_NAME as 'Cột',
+    REFERENCED_TABLE_NAME as 'Bảng tham chiếu',
+    REFERENCED_COLUMN_NAME as 'Cột tham chiếu'
+FROM 
+    INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND TABLE_NAME = 'table_name'
+    AND REFERENCED_TABLE_NAME IS NOT NULL"
+```
+
+## 6. Lệnh Tìm kiếm Nâng cao
+
+### Tìm tất cả bảng chứa từ khóa trong tên hoặc comment
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    TABLE_COMMENT as 'Comment',
+    'Table Name' as 'Tìm thấy trong'
+FROM 
+    INFORMATION_SCHEMA.TABLES 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND TABLE_NAME LIKE '%keyword%'
+UNION ALL
+SELECT 
+    TABLE_NAME as 'Tên Bảng',
+    TABLE_COMMENT as 'Comment',
+    'Table Comment' as 'Tìm thấy trong'
+FROM 
+    INFORMATION_SCHEMA.TABLES 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND TABLE_COMMENT LIKE '%keyword%'
+ORDER BY 
+    1"
+```
+
+### Tìm tất cả column chứa từ khóa trong tên hoặc comment
+```bash
+docker exec -i db mysql -u kantaki -pkantaki -D kantaki_dev --default-character-set=utf8mb4 -e "
+SELECT 
+    TABLE_NAME as 'Bảng',
+    COLUMN_NAME as 'Cột',
+    COLUMN_COMMENT as 'Comment',
+    'Column Name' as 'Tìm thấy trong'
+FROM 
+    INFORMATION_SCHEMA.COLUMNS 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND COLUMN_NAME LIKE '%keyword%'
+UNION ALL
+SELECT 
+    TABLE_NAME as 'Bảng',
+    COLUMN_NAME as 'Cột',
+    COLUMN_COMMENT as 'Comment',
+    'Column Comment' as 'Tìm thấy trong'
+FROM 
+    INFORMATION_SCHEMA.COLUMNS 
+WHERE 
+    TABLE_SCHEMA = 'kantaki_dev'
+    AND COLUMN_COMMENT LIKE '%keyword%'
+ORDER BY 
+    1, 2"
+```
 
 ### 🩺 Quy Trình Chẩn Đoán & Gỡ Lỗi (Diagnostic Protocol)
 
