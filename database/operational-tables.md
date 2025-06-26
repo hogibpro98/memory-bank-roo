@@ -778,4 +778,74 @@ WHERE NOT EXISTS (
 
 ---
 
-> 💡 **Lưu ý**: Operational data là heart của hệ thống KANTAKI-WIZ. Cần đảm bảo data integrity giữa planning và recording phases để system hoạt động chính xác.
+```sql
+SELECT
+    dur.unique_id,
+    dur.user_id,
+    dur.use_day,
+    dwsa.unique_id,
+    dwsa.start_day,
+    CONCAT(LPAD(DAY(dur.use_day),2,'0'), '=', DATE_FORMAT(dwsa.start_day, '%Y%m%d')) AS map_day,
+    LPAD(DAY(dur.use_day),2,'0') AS use_day_format
+FROM
+    dat_user_record AS dur
+    INNER JOIN dat_user_plan AS dup ON dur.user_plan_id = dup.unique_id
+    INNER JOIN dat_week_schedule AS dws ON dup.schedule_id = dws.unique_id
+    INNER JOIN dat_week_schedule_add AS dwsa ON dws.unique_id = dwsa.schedule_id AND dwsa.add_id = 'add00000028'
+WHERE
+    dur.delete_flg = 0
+    AND dur.use_day BETWEEN '2025-06-01' AND '2025-06-30'
+    AND dur.corporate_id = 'corp0017'
+```
+
+**Kết quả:**
+
+| dur.unique_id   | dur.user_id     | dur.use_day  | dwsa.unique_id   | dwsa.start_day | map_day     | use_day_format |
+|-----------------|-----------------|--------------|------------------|---------------|-------------|----------------|
+| urec00007997    | user00010715    | 2025-06-26   | wsad00002682     | 2025-06-26    | 26=20250626 | 26             |
+| urec00007995    | user00010715    | 2025-06-19   | wsad00002682     | 2025-06-26    | 19=20250626 | 19             |
+| urec00007996    | user00010715    | 2025-06-21   | wsad00002683     | 2025-06-30    | 21=20250630 | 21             |
+
+```code
+        // get list day mapping
+        $sqlDayMapping = <<<SQL
+        SELECT
+            dur.unique_id,
+            dur.user_id,
+            dur.use_day,
+            dwsa.unique_id AS dwsa_unique_id,
+            dwsa.start_day
+        FROM
+            dat_user_record AS dur
+            INNER JOIN dat_user_plan AS dup ON dur.user_plan_id = dup.unique_id
+            INNER JOIN dat_week_schedule AS dws ON dup.schedule_id = dws.unique_id
+            INNER JOIN dat_week_schedule_add AS dwsa ON dws.unique_id = dwsa.schedule_id AND dwsa.add_id = 'add00000028'
+        WHERE
+            dur.delete_flg = 0
+            AND dur.user_id IN (:user_ids)
+            AND dur.use_day BETWEEN :first AND :last
+            AND dur.corporate_id = :corporate_id
+        SQL;
+        $sqlDayMappingParams = [
+            ':user_ids' => implode(',', $userAry),
+            ':first' => $firstDay,
+            ':last' => $lastDay,
+            ':corporate_id' => $_SESSION['corporate_id']
+        ];
+        $listDayMapping = SafeDatabaseUtils::rawSelect($sqlDayMapping, $sqlDayMappingParams);
+        $listDayMappingFormat = array();
+        foreach ($listDayMapping as $mapping) {
+            $userId = $mapping['user_id'];
+            if (
+                $mapping['use_day'] && $mapping['start_day'] &&
+                preg_match('/^\d{4}-\d{2}-\d{2}$/', $mapping['use_day']) &&
+                preg_match('/^\d{4}-\d{2}-\d{2}$/', $mapping['start_day'])
+            ) {
+                $useDay = date('d', strtotime($mapping['use_day']));
+                $listDayMappingFormat[$userId][$useDay] = "";
+                $listDayMappingFormat[$userId][$useDay] .= $useDay . "=" . date('Ymd', strtotime($mapping['start_day'])) . ",";
+            }
+        }
+
+        var_dump($listDayMappingFormat['user00010715']['26']);
+```        
