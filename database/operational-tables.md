@@ -842,8 +842,8 @@ WHERE
                 preg_match('/^\d{4}-\d{2}-\d{2}$/', $mapping['start_day'])
             ) {
                 $useDay = date('d', strtotime($mapping['use_day']));
-                $listDayMappingFormat[$userId][$useDay] = "";
-                $listDayMappingFormat[$userId][$useDay] .= $useDay . "=" . date('Ymd', strtotime($mapping['start_day'])) . ",";
+                $dwsaUniqueId = $mapping['dwsa_unique_id'];
+                $listDayMappingFormat[$userId][$useDay][$dwsaUniqueId] = $useDay . "=" . date('Ymd', strtotime($mapping['start_day'])) . ",";
             }
         }
 
